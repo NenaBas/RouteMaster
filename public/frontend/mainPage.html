@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base target="_top" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Openrouting service With Neo4j</title>
+  <link rel="shortcut icon" href="#" />
+  <!-- CSS for leaflet and leaflet-geoman plugin -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.2/dist/leaflet.css"
+    integrity="sha256-sA+zWATbFveLLNqWO2gtiw3HL/lh1giY/Inf1BJ0z14="
+    crossorigin=""
+  />
+  <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.css"
+  />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+
+  <!-- Load JavaScript for leaflet, leaflet-geoman plugin, turf.js, and neo4j-driver -->
+  <script src="https://unpkg.com/leaflet@1.9.2/dist/leaflet.js"
+    integrity="sha256-o9N1jGDZrf5tS+Ft4gbIK7mYMipq9lqpVJ91xHSyKhg="
+    crossorigin=""
+  ></script>
+  <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+  <script src="https://unpkg.com/neo4j-driver"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/neo4j-driver"></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet-polylinedecorator/dist/leaflet.polylineDecorator.js"></script>
+
+  <link rel="stylesheet" type="text/css" href="style.css">
+
+</head>
+<body>
+
+
+<input type="file" id="importFileInput" accept=".csv" style="display: none;" />
+
+<div id="deleteNodeModal" class="modal">
+  <div class="modal-content">
+    <span class="close" id="closeDeleteNodeModal">&times;</span>
+    <div class="modal-title">Delete Stop</div>
+    <div class="label" id="deleteNodeLabel">Select the stop you want to delete:</div>
+    <select id="deleteNodeName"></select>
+    <button id="confirmDeleteNodeButton">Delete Stop</button>
+  </div>
+</div>
+
+
+<div id="menu-bar">
+  <ul id="menu-list">
+    <li class="menu-item">
+      <button id="file-button" >File</button>
+      <div class="menu-button-group" id="file-button-group">
+        <button id="importButton">Import CSV</button>
+        <button id="exportButton">Export CSV</button>
+        <button id="saveGeoJSONButton" type="button">Export GeoJSON</button>
+      </div>
+    </li>
+    <li class="menu-item">
+    <button id="actions-button" >Actions</button>
+      <div class="menu-button-group" id="actions-button-group">
+        <button id="deleteNodeButton" type="button">Delete Stop</button>
+        <button id="deleteAllNodesButton" type="button">Delete All Stops</button>
+        <button id="showSpecificLogButton">Show Routes</button>
+      </div>
+    </li>
+    <li>
+      <button id="openConfigButton" >Vehicle Configuration</button>
+    </li>
+    <li>
+      <button id="findroutes" type="button">Find Routes</button>
+    </li>
+    <li class="menu-item" id="home-button">
+  <a href="./homePage.html" class="white-button">
+    <i class="fas fa-home"></i> <!-- Font Awesome home icon -->
+  </a>
+</li>
+  </ul>
+</div>
+
+
+<div id="popupModal" class="mess">
+  <div class="mess-content">
+    <div id="popupMessageContent"></div>
+  </div>
+</div>
+
+<div id="routeInfo" class="route-info"></div>
+
+<div id="map" style="width: 100%; height: 100%"></div>
+
+<div id="nodeSelectionMessage" class="error-message" style="display: none;">
+  Please select at least one stop (start or end).
+</div>
+<!-- The vehicle configuration modal HTML structure -->
+<div id="vehicleConfigModal" class="modal">
+<div class="modal-content">
+<span class="close" id="closeVehicleConfigModal">&times;</span>
+    <div class="modal-title">Vehicle Configuration</div>
+    <form id="vehicleConfigForm">
+    <label for="numVehicles">Number of Vehicles:</label>
+    <input type="number" id="numVehicles" name="numVehicles" required>
+    <br>
+    <div id="vehicleConfigs"></div>
+    <button type="submit" class="submit-button">Apply Configuration</button>
+
+    <!-- The "Edit" button initially hidden -->
+    <button id="editConfigButton" class="submit-button" style="display: none;">Edit Configuration</button>
+    </form>
+</div>
+</div>
+
+<div id="customModal" class="modal">
+  <div class="modal-content">
+  <span class="close" id="closeCustomModal">&times;</span>
+  <div class="modal-title">Create a Stop <span id="nearestHighwaySpan"></span></div>
+    <div class="label">Name*:</div>
+    <input type="text" id="name" placeholder="Enter name">
+    <div id="nameErrorMessage" class="error-message"></div> 
+
+    <select id="color" style="display: none;">
+    <option value="">default</option>
+      <option value="yellow">Yellow</option>
+      <option value="green">Green</option>
+      <option value="orange">Orange</option>
+    </select>
+    <div class="label">Start Time:</div>
+    <input type="time" id="startTime" placeholder="Enter start time">
+    <div class="label">End Time:</div>
+    <input type="time" id="endTime" placeholder="Enter end time">
+    <button id="createNodeButton">Create Stop</button>
+  </div>
+</div>
+
+<!-- Custom warning container -->
+<div id="customWarning" class="custom-warning">
+<div class="custom-warning-box">
+    <div class="custom-warning-title">Warning</div>
+    <p id="customWarningMessage">This is a custom warning message.</p>
+    <button class="custom-warning-button" id="customWarningCloseButton">OK</button>
+</div>
+</div>
+
+
+<!-- <script type="module" src="../files.js"></script>
+<script type="module" src="../actions.js"></script>
+<script type="module" src="../tools.js"></script>
+<script type="module" src="../vehicleConf.js"></script> -->
+
+<script type="module" src="../../src/main.js"></script>
+
+
+</body>
+</html>

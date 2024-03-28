@@ -1,0 +1,441 @@
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font: 16px Arial;
+}
+
+.red-marker {
+  background-color: red;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+}
+.yellow-marker {
+  background-color: yellow;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+}
+.green-marker {
+  background-color: yellow;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+}
+.orange-marker {
+  background-color: yellow;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+}
+
+.modal {
+display: none;
+position: fixed;
+z-index: 1;
+left: 0;
+top: 0;
+width: 100%;
+height: 100%;
+overflow: auto;
+background-color: rgba(0, 0, 0, 0.5);
+}
+
+.modal-content {
+background: url('https://i.ibb.co/q9KnLsW/newmark.jpg') center center no-repeat;
+background-size: cover;
+margin: 15% auto;
+padding: 20px;
+border: 1px solid #888;
+width: 30%; /* Adjust the width as needed */
+border-radius: 10px;
+box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
+position: relative;
+}
+
+.modal-title {
+font-size: 24px;
+font-weight: bold;
+margin-bottom: 10px;
+color: black;
+}
+
+.close {
+color: #aaaaaa;
+float: right;
+font-size: 28px;
+font-weight: bold;
+cursor: pointer;
+}
+
+.close:hover, .close:focus {
+color: #000;
+text-decoration: none;
+cursor: pointer;
+}
+
+/* Style for the map */
+#map {
+  z-index: 0; 
+  width: 100%;
+  height: 80%;
+  cursor: pointer;
+
+}
+#map-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1; /* Ensure it's above other content */
+}
+
+/* Style for select dropdown */
+select {
+width: 100%;
+padding: 10px;
+margin-top: 5px;
+margin-bottom: 15px;
+font-size: 16px;
+border: 1px solid #ccc; 
+border-radius: 5px;
+}
+
+/* Reduce the width of the color select dropdown */
+select#color {
+  width: auto; 
+}
+
+/* Style for the "Create Node" button */
+#createNodeButton {
+background-color: #4CAF50;
+color: white;
+padding: 10px 20px;
+border: none;
+border-radius: 5px;
+cursor: pointer;
+transition: background-color 0.3s ease;
+font-size: 16px;
+}
+/* Change the button color on hover */
+#createNodeButton:hover {
+  background-color: #45a049; 
+}
+
+/* Style for the labels and their container */
+.label-container {
+  background-color: #f4f4f4; 
+  padding: 10px; 
+  border-radius: 5px; 
+  margin-bottom: 10px; 
+}
+
+.label {
+  font-weight: bold;
+  margin-bottom: 5px;
+  color: #333;
+  font-size: 16px;
+}
+
+
+
+/* Style for input fields */
+input[type="number"],
+input[type="time"],
+select {
+width: 100%;
+padding: 10px;
+margin-top: 5px;
+margin-bottom: 15px;
+font-size: 16px;
+border: 1px solid #ccc; 
+border-radius: 5px;
+}
+
+/* CSS to style the error message */
+.error-message {
+  color: red;
+  font-size: 12px;
+  margin-top: 5px;
+}
+
+.route-info {
+  position: absolute;
+  top: 20px; 
+  right: 20px; 
+  display: flex;
+  flex-direction: column;
+}
+
+.route-info-square {
+  background-color: #007BFF; 
+  color: white;
+  padding: 5px;
+  margin-bottom: 5px;
+  border-radius: 5px;
+  text-align: right;
+  font-weight: bold;
+}
+
+.submit-button {
+background-color: #4caf50;
+color: white;
+padding: 10px 15px;
+border: none;
+cursor: pointer;
+margin-top: 10px;
+border-radius: 5px;
+transition: background-color 0.3s ease;
+}
+
+.submit-button:hover {
+background-color: #45a049;
+}
+
+/* Style for the menu bar */
+#menu-bar {
+position: fixed;
+top: 0;
+left: 0;
+width: 100%;
+background-color: #333;
+color: white;
+padding: 5px;
+z-index: 2; /* Ensure it's above the map */
+}
+
+#menu-list {
+list-style: none;
+padding: 0;
+margin: 0;
+display: flex;
+flex-wrap: wrap;
+align-items: center;
+}
+
+.menu-item {
+margin-right: 10px;
+position: relative;
+}
+#menu-list button {
+  background-color: #333; 
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+#menu-list button:hover {
+  background-color: #444; 
+}
+
+.menu-button-group {
+display: none;
+position: absolute; 
+top: 100%; 
+left: 0;
+background-color: #555; 
+border-radius: 5px;
+z-index: 1; 
+}
+
+.menu-item:hover .menu-button-group {
+display: block; 
+}
+#menu-list .menu-item#refresh-button {
+margin-left: auto; 
+}
+
+
+#deleteNodeModal button {
+background-color: #f44336;
+color: white;
+padding: 5px 5px;
+border: none;
+cursor: pointer;
+margin-top: 10px;
+border-radius: 5px;
+transition: background-color 0.3s ease;
+}
+
+#deleteNodeModal button:hover {
+background-color: #d32f2f;
+}
+#deleteNodeModal #deleteNodeFeedback {
+color: red;
+font-size: 12px;
+margin-top: 5px;
+}
+/* Style for the modal container */
+.mess {
+display: none;
+position: fixed;
+z-index: 1;
+left: 0;
+top: 0;
+width: 100%;
+height: 100%;
+overflow: auto;
+background-color: rgba(0, 0, 0, 0.5);
+}
+
+/* Style for the modal content */
+.mess-content {
+background-color: #fefefe;
+margin: 15% auto;
+padding: 10px; 
+border: 1px solid #888;
+width: 40%; 
+height: auto; 
+max-height: 70%; 
+border-radius: 10px;
+box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
+position: relative;
+}
+/* Style for the message content inside the modal */
+#popupMessageContent {
+font-size: 14px; 
+}
+
+
+/* Style for the close button */
+.close {
+color: #aaaaaa;
+float: right;
+font-size: 28px;
+font-weight: bold;
+cursor: pointer;
+}
+
+.close:hover, .close:focus {
+color: #000;
+text-decoration: none;
+cursor: pointer;
+}
+
+/* CSS for the time window inputs */
+.time-window-inputs {
+display: flex; 
+align-items: center; 
+}
+
+.time-window-inputs input[type="time"] {
+width: 50%; 
+margin-right: 10px; 
+}
+
+.time-window-separator {
+margin: 0 5px; 
+}
+.time-window-group {
+display: flex;
+align-items: center;
+}
+
+.time-label {
+margin-right: 5px;
+margin-left: 5px;
+}
+.node-group {
+display: flex;
+align-items: center;
+}
+
+.node-label {
+margin-right: 5px;
+margin-left: 5px;
+}
+
+
+.yellow-background {
+background-color: yellow;
+}
+
+.green-background {
+background-color: green;
+}
+
+.orange-background {
+background-color: orange;
+}
+
+.white-button {
+color: white;
+text-decoration: none; /* Optional: Remove underlines for links */
+}
+
+
+/* Style for the custom warning */
+.custom-warning {
+display: none;
+position: fixed;
+z-index: 1000;
+left: 0;
+top: 0;
+width: 100%;
+height: 100%;
+background-color: rgba(0, 0, 0, 0.7);
+justify-content: center;
+align-items: center;
+}
+
+.custom-warning-box {
+background-color: #f7f7f7;
+color: #333;
+padding: 20px;
+border-radius: 10px;
+text-align: center;
+font-size: 18px;
+box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.custom-warning-title {
+font-size: 24px;
+font-weight: bold;
+margin-bottom: 10px;
+color: #007BFF;
+}
+
+.custom-warning-image {
+width: 50px;
+height: 50px;
+margin-bottom: 20px;
+}
+
+/* Style for the OK button */
+.custom-warning-button {
+background-color: #007BFF;
+color: white;
+padding: 10px 20px;
+border: none;
+border-radius: 5px;
+cursor: pointer;
+font-size: 16px;
+margin-top: 20px;
+transition: background-color 0.3s ease;
+}
+
+.custom-warning-button:hover {
+background-color: #0056b3;
+}
+
+/* Style for the home button */
+.menu-item#home-button {
+margin-left: auto; 
+}

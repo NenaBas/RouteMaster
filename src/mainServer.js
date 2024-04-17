@@ -105,10 +105,41 @@ router.get('/loadVehicles', async (req, res) => {
         }).then(() => {
             session.close();
         })
-
     } catch (error) {
         console.error('Error loading vehicles:', error);
         res.status(500).send('Failed to load vehicles.');
+    }
+});
+
+// delete all nodes from db
+router.delete('/deleteAllNodes', async (req, res) => {
+    try {
+        var session = driver.session({ database: config.neo4jDatabase });
+
+        const deleteAllNodesQuery = "MATCH (n:Node) DETACH DELETE n";
+
+        const result = await session.run(deleteAllNodesQuery);
+        await session.close();
+        res.status(200).json({ message: 'All nodes deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting nodes:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// delete all vehicles from db
+router.delete('/deleteAllVehicles', async (req, res) => {
+    try {
+        const session = driver.session({ database: config.neo4jDatabase });
+
+        const deleteAllVehiclesQuery = "MATCH (v:Vehicle) DETACH DELETE v";
+
+        const result = await session.run(deleteAllVehiclesQuery);
+        await session.close();
+        res.status(200).json({ message: 'All vehicles deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting nodes:', error);
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 

@@ -4,7 +4,7 @@ import * as config from './configApis/config';
 import neo4j from 'neo4j-driver';
 import express from 'express';
 import path from 'path';
-
+import https from 'https';
 
 const app = express();
 const port = process.env.PORT || 80;
@@ -74,10 +74,6 @@ router.get('/loadNodes', async (req, res) => {
     }
 });
 
-router.get('/createNode', async (req, res) => {
-    res.send('Create Node');
-});
-
 // load vehicles from neo4j and return them as a simple json object
 router.get('/loadVehicles', async (req, res) => {
     try {
@@ -109,6 +105,173 @@ router.get('/loadVehicles', async (req, res) => {
         console.error('Error loading vehicles:', error);
         res.status(500).send('Failed to load vehicles.');
     }
+});
+
+const simplifyRouteData = (data) => {
+    const vehicles = {};
+
+    data.forEach(entry => {
+        if (entry.relationshipType === "START_TO_ROUTE" || entry.relationshipType === "ROUTE_TO_END") return;
+
+        const vehicleName = entry.nodeA.vehicleName;
+
+        if (!vehicles[vehicleName]) {
+            vehicles[vehicleName] = [];
+        }
+        // check if a stop with the same name already exists
+        const stopExists = (vehicle, stopName) => {
+            return vehicle.some(stop => stop.name === stopName);
+        };
+        // Add nodeA if it doesn't already exist
+        if (!stopExists(vehicles[vehicleName], entry.nodeA.name)) {
+            vehicles[vehicleName].push({
+                name: entry.nodeA.name,
+                arrivalTime: entry.nodeA.arrivalTime,
+                // relationshipType: entry.relationshipType
+            });
+        }
+        // Add nodeB if it doesn't already exist and is different from nodeA
+        if (entry.nodeA.name !== entry.nodeB.name && !stopExists(vehicles[vehicleName], entry.nodeB.name)) {
+            vehicles[vehicleName].push({
+                name: entry.nodeB.name,
+                arrivalTime: entry.nodeB.arrivalTime,
+                // relationshipType: entry.relationshipType
+            });
+        }
+    });
+
+    return Object.keys(vehicles).map(vehicleName => ({
+        vehicleName,
+        stops: vehicles[vehicleName]
+    }));
+};
+
+router.get('/getRoutes', async (req, res) => {
+    try {
+        var session = driver.session({ database: config.neo4jDatabase });
+
+        const retrieveAllNodeRelationships = `
+            MATCH (a)-[r]->(b)
+            RETURN a, type(r), b
+        `;
+
+        const relationships = [];
+
+        session.run(retrieveAllNodeRelationships)
+        .then(result => {
+            const relationships = [];
+
+            result.records.map(record => {
+                // Extract properties from the record fields
+                const a = record.get("a");
+                const b = record.get("b");
+                var relationshipType = record.get("type(r)");
+
+                // Extract properties from node 'a' and 'b'
+                const nodeAProperties = {
+                    name: a.properties.name,
+                    arrivalTime: a.properties.arrivalTime,
+                    vehicleName: a.properties.vehicleName,
+                    // Add more properties as needed
+                };
+                const nodeBProperties = {
+                    name: b.properties.name,
+                    arrivalTime: b.properties.arrivalTime,
+                    vehicleName: b.properties.vehicleName,
+                };
+                // Construct relationship object
+                const relationship = {
+                    nodeA: nodeAProperties,
+                    nodeB: nodeBProperties,
+                    relationshipType: relationshipType,
+                };
+                // Push the relationship object to the array
+                relationships.push(relationship);
+            });
+            // Let's simplify the json - GROUP BY vehicleName
+            const simplifiedData = simplifyRouteData(relationships);
+            
+            res.json(simplifiedData);
+        }).catch(error => {
+            console.error("Error fetching all node relationships from Neo4j:", error);
+            res.status(500).send('Failed to load all node relationships.');
+        }).then(() => {
+            session.close();
+        })
+    } catch (error) {
+        console.log('Error loading all node relationships:', error);
+        res.status(500).send('Failed to load all node relationships.');
+    }
+});
+
+router.get('/getMatrix', async (req, res) => {
+    var durationsString = '';
+    const nenaApiKey = config.nenaORSkey;
+    const stopNames = ['stop1', 'stop2', 'stop3', 'stop4', 'stop6'];
+    const postData = JSON.stringify({
+        locations: [    // [longitude, latitude]
+            [25.136901140213, 35.3326149286569],    // stop1 - Nταλιάνη
+            [25.1362144947052, 35.3309956674026],   // stop2 - Παπανδρέου Γεωρ. 39
+            [25.1352274417877, 35.3317659146393],   // stop3 - Κνωσσού Λ. 2
+            [25.1352488994598, 35.3325011437906],   // stop4 - Ζερβουδάκη
+            [25.1376092433929, 35.3324223695586]    // stop6 - Δρακοντοπούλου
+        ]
+    });
+
+    const options = {
+        hostname: 'api.openrouteservice.org',
+        path: '/v2/matrix/driving-car',
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Accept': 'application/json, application/geo+json, application/gpx+xml, img/png; charset=utf-8',
+            'Authorization': nenaApiKey
+        }
+    };
+
+    const request = https.request(options, (response) => {
+        let data = '';
+
+        // A chunk of data has been received.
+        response.on('data', (chunk) => {
+            data += chunk;
+        });
+
+        // The whole response has been received.
+        response.on('end', () => {
+            if (response.statusCode === 200) {
+                const jsondata   = JSON.parse(data);
+                const durations  = jsondata.durations;
+                const numOfNodes = JSON.parse(postData).locations.length;
+                console.log(durations);
+                console.log('--- Number of nodes: ',numOfNodes);
+                let startNode = '', endNode = '';
+                for (let i=0; i<durations.length; i++) {
+                    startNode = stopNames[i];
+                    for (let j=0; j<durations[i].length; j++) {
+                        endNode = stopNames[j];
+                        let minutes = Math.ceil(durations[i][j] / 60);
+                        // if (minutes === '0.00') minutes = '0';
+                        console.log('row: ', i, ', col:', j, "\t", durations[i][j], "\tmin: ",minutes, "\tfrom: ",startNode, ", to: ",endNode);
+                        durationsString += ('distance('+startNode+', '+endNode+', '+minutes+').');
+                    }
+                }
+                console.log(durationsString);
+                res.json({durations,durationsString});
+            } else {
+                res.status(response.statusCode).send('Failed to load matrix with distances between nodes, from OpenRouting Service.');
+            }
+        });
+    });
+
+    request.on('error', (error) => {
+        console.error('Error loading distances matrix from OpenRouting Service:', error);
+        res.status(500).send('Failed to load matrix with distances between nodes, from OpenRouting Service.');
+    });
+
+    // Write the data to the request body
+    request.write(postData);
+    request.end();
 });
 
 // delete all nodes from db

@@ -205,18 +205,46 @@ router.get('/getRoutes', async (req, res) => {
 });
 
 router.get('/getMatrix', async (req, res) => {
-    var durationsString = '';
+    let storedNodes, storedVehicles, locations, stopNames, postData;
+
+    // load the nodes first
+    async function loadNodes() {
+        try {
+            var session = driver.session({ database: config.neo4jDatabase });
+
+            const fetchNodesQuery = `
+                MATCH (n:Node)
+                RETURN n.streetName AS streetName, n.latitude AS latitude, n.longitude AS longitude, n.streetNumber AS streetNumber, n.name AS name, n.nodeColor AS nodeColor, n.startTime AS startTime, n.endTime AS endTime, n.vehicleName AS vehicleName, n.arrivalTime AS arrivalTime
+            `;
+            const result = await session.run(fetchNodesQuery);
+            const nodes = result.records.map(record => ({
+                streetName:     record.get("streetName"),
+                latitude:       record.get("latitude"),
+                longitude:      record.get("longitude"),
+                streetNumber:   record.get("streetNumber"),
+                name:           record.get("name"),
+                nodeColor:      record.get("nodeColor"),
+                startTime:      record.get("startTime"),
+                endTime:        record.get("endTime"),
+                arrivalTime:    record.get("arrivalTime"),
+                vehicleName:    record.get("vehicleName"),
+            }));
+            storedNodes = nodes;
+            locations = nodes.map(node => [node.longitude, node.latitude]);
+            stopNames = nodes.map(node => node.name); // Extract node names
+            postData = JSON.stringify({locations});
+            
+            await session.close();
+        } catch (error) {
+            console.error('Error loading nodes:', error);
+            res.status(500).send('Failed to load nodes.');
+        }
+    }
+    await loadNodes();
+
+
+    let durationsString = '';
     const nenaApiKey = config.nenaORSkey;
-    const stopNames = ['stop1', 'stop2', 'stop3', 'stop4', 'stop6'];
-    const postData = JSON.stringify({
-        locations: [    // [longitude, latitude]
-            [25.136901140213, 35.3326149286569],    // stop1 - Nταλιάνη
-            [25.1362144947052, 35.3309956674026],   // stop2 - Παπανδρέου Γεωρ. 39
-            [25.1352274417877, 35.3317659146393],   // stop3 - Κνωσσού Λ. 2
-            [25.1352488994598, 35.3325011437906],   // stop4 - Ζερβουδάκη
-            [25.1376092433929, 35.3324223695586]    // stop6 - Δρακοντοπούλου
-        ]
-    });
 
     const options = {
         hostname: 'api.openrouteservice.org',
@@ -239,11 +267,12 @@ router.get('/getMatrix', async (req, res) => {
 
         // The whole response has been received.
         response.on('end', () => {
+            console.log("locations: ",postData);
             if (response.statusCode === 200) {
                 const jsondata   = JSON.parse(data);
                 const durations  = jsondata.durations;
                 const numOfNodes = JSON.parse(postData).locations.length;
-                console.log(durations);
+                console.log("durations: ",durations);
                 console.log('--- Number of nodes: ',numOfNodes);
                 let startNode = '', endNode = '';
                 for (let i=0; i<durations.length; i++) {
@@ -251,7 +280,6 @@ router.get('/getMatrix', async (req, res) => {
                     for (let j=0; j<durations[i].length; j++) {
                         endNode = stopNames[j];
                         let minutes = Math.ceil(durations[i][j] / 60);
-                        // if (minutes === '0.00') minutes = '0';
                         console.log('row: ', i, ', col:', j, "\t", durations[i][j], "\tmin: ",minutes, "\tfrom: ",startNode, ", to: ",endNode);
                         durationsString += ('distance('+startNode+', '+endNode+', '+minutes+').');
                     }
@@ -259,6 +287,7 @@ router.get('/getMatrix', async (req, res) => {
                 console.log(durationsString);
                 res.json({durations,durationsString});
             } else {
+                console.log(response.statusCode,"\n",postData);
                 res.status(response.statusCode).send('Failed to load matrix with distances between nodes, from OpenRouting Service.');
             }
         });

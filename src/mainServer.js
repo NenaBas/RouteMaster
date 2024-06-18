@@ -45,56 +45,69 @@ function timeToMinutes(time) {
 }
 const simplifyRouteData = (data) => {
     const vehicles = {};
+    const vehiclesStartEnd = {};
+
+    console.log('-------------------------------------\nBEFORE DATA SIMPLIFICATION:\n',data);
 
     data.forEach(entry => {
-        if (entry.relationshipType === "START_TO_ROUTE" || entry.relationshipType === "ROUTE_TO_END") return;
+        // if (entry.relationshipType === "START_TO_ROUTE" || entry.relationshipType === "ROUTE_TO_END") return;
 
         const vehicleName = entry.nodeA.vehicleName;
 
         if (!vehicles[vehicleName]) {
             vehicles[vehicleName] = [];
         }
-        // check if a stop with the same name already exists
-        const stopExists = (vehicle, stopName) => {
-            return vehicle.some(stop => stop.name === stopName);
-        };
-        // Add nodeA if it doesn't already exist
-        if (!stopExists(vehicles[vehicleName], entry.nodeA.name)) {
-            vehicles[vehicleName].push({
-                name:           entry.nodeA.name,
-                arrivalTime:    entry.nodeA.arrivalTime,
-                startTime:      entry.nodeA.startTime,
-                endTime:        entry.nodeA.endTime,
-                streetName:     entry.nodeA.streetName,
-                streetNumber:   entry.nodeA.streetNumber,
-                latitude:       entry.nodeA.latitude,
-                longitude:      entry.nodeA.longitude
-            });
+        if (!vehiclesStartEnd[vehicleName]) {
+            vehiclesStartEnd[vehicleName] = {};
         }
-        // Add nodeB if it doesn't already exist and is different from nodeA
-        if (entry.nodeA.name !== entry.nodeB.name && !stopExists(vehicles[vehicleName], entry.nodeB.name)) {
-            vehicles[vehicleName].push({
-                name:           entry.nodeB.name,
-                arrivalTime:    entry.nodeB.arrivalTime,
-                startTime:      entry.nodeB.startTime,
-                endTime:        entry.nodeB.endTime,
-                streetName:     entry.nodeB.streetName,
-                streetNumber:   entry.nodeB.streetNumber,
-                latitude:       entry.nodeB.latitude,
-                longitude:      entry.nodeB.longitude
-            });
+        if (entry.relationshipType === "START_TO_ROUTE") {
+            vehiclesStartEnd[entry.nodeB.vehicleName] =  {...vehiclesStartEnd[entry.nodeB.vehicleName], 'routeStart': entry.nodeA.name};
+        } else if (entry.relationshipType === "ROUTE_TO_END") {
+            vehiclesStartEnd[entry.nodeA.vehicleName] =  {...vehiclesStartEnd[entry.nodeA.vehicleName], 'routeEnd': entry.nodeB.name} ;
+        } else {
+            // check if a stop with the same name already exists
+            const stopExists = (vehicle, stopName) => {
+                return vehicle.some(stop => stop.name === stopName);
+            };
+            // Add nodeA if it doesn't already exist
+            if (!stopExists(vehicles[vehicleName], entry.nodeA.name)) {
+                vehicles[vehicleName].push({
+                    name:           entry.nodeA.name,
+                    arrivalTime:    entry.nodeA.arrivalTime,
+                    startTime:      entry.nodeA.startTime,
+                    endTime:        entry.nodeA.endTime,
+                    streetName:     entry.nodeA.streetName,
+                    streetNumber:   entry.nodeA.streetNumber,
+                    latitude:       entry.nodeA.latitude,
+                    longitude:      entry.nodeA.longitude
+                });
+            }
+            // Add nodeB if it doesn't already exist and is different from nodeA
+            if (entry.nodeA.name !== entry.nodeB.name && !stopExists(vehicles[vehicleName], entry.nodeB.name)) {
+                vehicles[vehicleName].push({
+                    name:           entry.nodeB.name,
+                    arrivalTime:    entry.nodeB.arrivalTime,
+                    startTime:      entry.nodeB.startTime,
+                    endTime:        entry.nodeB.endTime,
+                    streetName:     entry.nodeB.streetName,
+                    streetNumber:   entry.nodeB.streetNumber,
+                    latitude:       entry.nodeB.latitude,
+                    longitude:      entry.nodeB.longitude
+                });
+            }
         }
     });
 
     return Object.keys(vehicles).map(vehicleName => ({
         vehicleName,
-        stops: vehicles[vehicleName]
+        stops:      vehicles[vehicleName],
+        routeStart: vehiclesStartEnd[vehicleName].routeStart,
+        routeEnd:   vehiclesStartEnd[vehicleName].routeEnd
     }));
 };
-
 const logRouteName = (req, res, next) => {
     if (req.path !== '/favicon.ico')    // avoid double logging
-        console.log(`-----------------------------------------\n-------> ROUTE: ${req.path}\t\t${new Date().toString()}`);
+        console.log(`-----------------------------------------------------------------------------------------------------------------\n-------> ROUTE: ${req.path}\t\t${new Date().toString()}`);
     next();
 }
 

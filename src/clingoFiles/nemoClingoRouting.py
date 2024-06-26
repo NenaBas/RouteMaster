@@ -94,7 +94,7 @@ def parseOutput(answerset):
 #   Return a string containing all ASP facts
 
 def getInputData():
-    
+
     try:
         response = requests.get('http://139.91.183.121/neo4j/retrieveASPrules')
         # if request was successful
@@ -119,14 +119,20 @@ def getInputData():
 
 #%% Main
 
+
+print("Fetching problem instance...")
+# Call the service to retrieve nodes, vehicles and distances
+problemInstance = getInputData()
+if "Failed" in problemInstance or "error" in problemInstance:
+    print("------------ProblemInstance retrieval failure------------\n", problemInstance)
+
+
+
+print("Initializing Clingo...")
 ctl = Control(["0"])
 
 
-
-
-
-
-# Specifiy optimaziation aspects
+# Specify optimaziation aspects
     # If we do not use the optN parameter, then we get a single optimal answer (the last one)
     # With optN activated, we get all optimal answers. We can also choose to get N optimal answers    
 if (optimalityGuarranteed) :
@@ -135,11 +141,7 @@ if (optimalityGuarranteed) :
 
 
 ctl.load(filepath)
-
-# Call the service to retrieve nodes, vehicles and distances
-problemInstance = getInputData()
 ctl.add("base", [], problemInstance)
-
 ctl.add("base", [], "serviceTime(X, "+str(serviceTime)+") :- node(X).")
 
 #if (minimizeJobsNotServed):

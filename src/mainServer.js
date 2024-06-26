@@ -7,7 +7,7 @@ import path from 'path';
 import https from 'https';
 import fs from 'fs';
 
-const { PythonShell } = require('python-shell');
+const { execFile } = require('child_process');
 
 const app = express();
 const port = process.env.PORT || 80;
@@ -300,6 +300,112 @@ router.get('/getRoutes', async (req, res) => {
 });
 
 router.get('/getRoutesFromORS', async (req, res) => {
+    let locations, stopNames, storedNodes, vehicleConfig;
+
+    // load the nodes first to get coordinate arrays
+    async function loadNodes() {
+        try {
+            var session = driver.session({ database: config.neo4jDatabase });
+
+            const fetchNodesQuery = `
+                MATCH (n:Node)
+                RETURN n.streetName AS streetName, n.latitude AS latitude, n.longitude AS longitude, n.streetNumber AS streetNumber, n.name AS name, n.nodeColor AS nodeColor, n.startTime AS startTime, n.endTime AS endTime, n.vehicleName AS vehicleName, n.arrivalTime AS arrivalTime
+            `;
+            const result = await session.run(fetchNodesQuery);
+            const nodes = result.records.map(record => {
+                return {
+                    streetName:     record.get("streetName"),
+                    latitude:       record.get("latitude"),
+                    longitude:      record.get("longitude"),
+                    streetNumber:   record.get("streetNumber"),
+                    name:           record.get("name"),
+                    startTime:      record.get("startTime"),
+                    endTime:        record.get("endTime"),
+                }
+            });
+            storedNodes = nodes;
+
+            locations = storedNodes.map(node => [node.longitude, node.latitude]);
+            stopNames = storedNodes.map(node => node.name); // Extract node names
+
+            console.log('-------Loaded Nodes:\n--------nodes:',nodes,'\n--------locations:',locations,'\n--------stopNames:',stopNames);
+
+            await session.close();
+        } catch (error) {
+            console.error('Error loading nodes:', error);
+            res.status(500).send('Failed to load nodes.');
+        }
+    }
+    await loadNodes();
+    // load the vehicles next and setup vehicleConfig for the API
+    async function loadVehicles() {
+        try {
+            var session = driver.session({ database: config.neo4jDatabase });
+
+            const fetchVehiclesQuery = `
+                MATCH (v:Vehicle)
+                RETURN v.vehicleID AS vehicleID, v.capacity AS capacity, v.startNode AS startNode, v.endNode AS endNode, v.startTime AS startTime, v.endTime AS endTime
+            `;
+            const result = await session.run(fetchVehiclesQuery);
+            const vehicles = result.records.map(record => ({
+                vehicleID:  record.get("vehicleID"),
+                capacity:   record.get("capacity"),
+                startNode:  record.get("startNode"),
+                endNode:    record.get("endNode"),
+                startTime:  record.get("startTime"),
+                endTime:    record.get("endTime"),
+            }));
+            vehicleConfig = vehicles.map(v => {  
+                const vehicle = {
+                    id: v.vehicleID,          // Store the original vehicle ID from your configuration
+                    profile: 'driving-car',
+                    capacity: [v.capacity],
+                };
+                if (v.startNode !== null) {
+                    vehicle.start = [
+                        storedNodes.find(node => node.name === v.startNode).longitude,
+                        storedNodes.find(node => node.name === v.startNode).latitude,
+                    ];
+                }
+                if (v.endNode !== null) {
+                    vehicle.end = [
+                        storedNodes.find(node => node.name === v.endNode).longitude,
+                        storedNodes.find(node => node.name === v.endNode).latitude,
+                    ];
+                }
+                return vehicle;
+            });
+        } catch (error) {
+            console.error('Error loading vehicles:', error);
+            res.status(500).send('Failed to load vehicles.');
+        }
+    }
+    await loadVehicles();
+
+    console.log('-------------vehicle config for optimization API:',vehicleConfig);
+
+    const busStops = storedNodes.map((node,index) => ({
+        id: index + 2, 
+        latitude: node.latitude,
+        longitude: node.longitude,
+        name: node.name,
+        startTime: node.startTime,
+        endTime: node.endTime,
+    }));
+    const jobs = busStops.map
+
+    const nenaApiKey = config.nenaORSkey;
+    const options = {
+        hostname: 'api.openrouteservice.org',
+        path: '/optimization',
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Accept': 'application/json, application/geo+json, application/gpx+xml, img/png; charset=utf-8',
+            'Authorization': nenaApiKey
+        }
+    };
+
 
 });
 
@@ -482,19 +588,21 @@ router.get('/runPythonScript', async (req, res) => {
             return res.status(500).send(`Error: File ${lpFilePath} does not exist.`);
         }
 
-        let options = {
-            scriptPath: scriptPath, // Specify the path to your script
-            args: [lpFilePath]
-        };
-        PythonShell.run("nemoClingoRouting.py", options, function (err, results) {
+        const pythonScriptPath = path.join(scriptPath, 'nemoClingoRouting.py');
+        const pythonExecutable = 'python'; // or 'python3', depending on your setup
+
+        console.log(`Executing script: ${pythonExecutable} ${pythonScriptPath} ${lpFilePath}`);
+
+        execFile(pythonExecutable, [pythonScriptPath, lpFilePath], { cwd: scriptPath, timeout: 20000 }, (err, stdout, stderr) => {
             if (err) {
-                console.error('Error:', err);
-                res.status(500).send(err);
-            } else {
-                // Log the output from the Python script
-                console.log('Python script output:', results.join('\n'));
-                res.json({ output: results });
+                console.error('Execution error:', err);
+                return res.status(500).send(err.message);
             }
+            if (stderr) {
+                console.error('Python script stderr:', stderr);
+            }
+            console.log('Python script output:', stdout);
+            res.json(stdout);
         });
     } catch (error) {
         console.error('Error in runPythonScript:', error);

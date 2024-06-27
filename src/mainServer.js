@@ -7,6 +7,7 @@ import path from 'path';
 import https from 'https';
 import fs from 'fs';
 
+const cors = require('cors')
 const { execFile } = require('child_process');
 
 const app = express();
@@ -21,6 +22,7 @@ export const driver = neo4j.driver(
 // Middleware setup
 const publicPath = path.join(__dirname, '..', 'public');
 
+app.use(cors());
 app.use(express.json());
 // Serve static files from the 'public' directory
 app.use(express.static(publicPath));
@@ -110,6 +112,42 @@ const logRouteName = (req, res, next) => {
         console.log(`-----------------------------------------------------------------------------------------------------------------\n-------> ROUTE: ${req.path}\t\t${new Date().toString()}`);
     next();
 }
+const sortMatrix = (matrix) => {
+    return matrix.sort((a, b) => {
+        if (a[0] < b[0]) return -1;
+        if (a[0] > b[0]) return 1;
+        if (parseInt(a[2], 10) < parseInt(b[2], 10)) return -1;
+        if (parseInt(a[2], 10) > parseInt(b[2], 10)) return 1;
+        return 0;
+    });
+};
+const groupMatrixByVehicle = (matrix) => {
+    return matrix.reduce((acc, row) => {
+        const vehicle = row[0];
+        if (!acc[vehicle]) {
+            acc[vehicle] = [];
+        }
+        acc[vehicle].push(row);
+        return acc;
+    }, {});
+};
+// extract the matrix of the optimal answer set from the clingo results and sort it by vehicle and timepoint
+const extractMatrixFromClingoAS = (output) => {
+    const match = output.match(/Optimal:\s+True\s+([\s\S]*?)SAT/);
+    if (match) {
+        const dataSection = match[1];
+        const matrixMatch = dataSection.match(/\[\[.*?\]\]/);
+        if (matrixMatch) {
+            try {
+                const matrix = JSON.parse(matrixMatch[0].replace(/'/g, '"')); // Replace single quotes with double quotes for JSON parsing
+                return matrix;
+            } catch (error) {
+                console.error('Error parsing matrix:', error);
+            }
+        }
+    }
+    return null;
+};
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // Define routes
@@ -602,7 +640,15 @@ router.get('/runPythonScript', async (req, res) => {
                 console.error('Python script stderr:', stderr);
             }
             console.log('Python script output:', stdout);
-            res.json(stdout);
+            const matrix = extractMatrixFromClingoAS(stdout);
+            if (matrix) {
+                // sort and group the matrix by vehicle
+                const sortedMatrix = sortMatrix(matrix);
+                const groupedMatrix = groupMatrixByVehicle(sortedMatrix);
+                res.json({ groupedMatrix });
+            }
+            else
+                res.status(500).send('Matrix not found in the output.');
         });
     } catch (error) {
         console.error('Error in runPythonScript:', error);

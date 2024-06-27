@@ -172,13 +172,13 @@ router.get('/loadNodes', async (req, res) => {
                 streetName:     record.get("streetName"),
                 latitude:       record.get("latitude"),
                 longitude:      record.get("longitude"),
-                streetNumber:   record.get("streetNumber"),
+                streetNumber:   (record.get("streetNumber") ? record.get("streetNumber") : ""),
                 name:           record.get("name"),
                 nodeColor:      record.get("nodeColor"),
-                startTime:      record.get("startTime"),
-                endTime:        record.get("endTime"),
-                arrivalTime:    record.get("arrivalTime"),
-                vehicleName:    record.get("vehicleName"),
+                startTime:      (record.get("startTime") ? record.get("startTime") : ""),
+                endTime:        (record.get("endTime") ? record.get("endTime") : ""),
+                arrivalTime:    (record.get("arrivalTime") ? record.get("arrivalTime") : ""),
+                vehicleName:    (record.get("vehicleName") ? record.get("vehicleName") : ""),
             }));
             res.json(nodes);
         }).catch(error => {
@@ -209,10 +209,10 @@ router.get('/loadVehicles', async (req, res) => {
             const vehicles = result.records.map(record => ({
                 vehicleID:  record.get("vehicleID"),
                 capacity:   record.get("capacity"),
-                startNode:  record.get("startNode"),
-                endNode:    record.get("endNode"),
-                startTime:  record.get("startTime"),
-                endTime:    record.get("endTime"),
+                startNode:  (record.get("startNode") ? record.get("startNode") : ""),
+                endNode:    (record.get("endNode") ? record.get("endNode") : ""),
+                startTime:  (record.get("startTime") ? record.get("startTime") : ""),
+                endTime:    (record.get("endTime") ? record.get("endTime") : ""),
             }));
             res.json(vehicles);
         }).catch(error => {
@@ -279,8 +279,8 @@ router.get('/getRoutes', async (req, res) => {
             // Extract properties from node 'a' and 'b'
             const nodeAProperties = {
                 name:        a.properties.name,
-                startTime:   a.properties.startTime || null,    // set to null if not available
-                endTime:     a.properties.endTime || null,
+                startTime:   a.properties.startTime || "",    // set to null if not available
+                endTime:     a.properties.endTime || "",
                 arrivalTime: a.properties.arrivalTime,
                 vehicleName: a.properties.vehicleName,
                 streetName:  a.properties.streetName,
@@ -290,8 +290,8 @@ router.get('/getRoutes', async (req, res) => {
             };
             const nodeBProperties = {
                 name:        b.properties.name,
-                startTime:   b.properties.startTime || null,
-                endTime:     b.properties.endTime || null,
+                startTime:   b.properties.startTime || "",
+                endTime:     b.properties.endTime || "",
                 arrivalTime: b.properties.arrivalTime,
                 vehicleName: b.properties.vehicleName,
                 streetName:  b.properties.streetName,
@@ -355,10 +355,10 @@ router.get('/getRoutesFromORS', async (req, res) => {
                     streetName:     record.get("streetName"),
                     latitude:       record.get("latitude"),
                     longitude:      record.get("longitude"),
-                    streetNumber:   record.get("streetNumber"),
+                    streetNumber:   (record.get("streetNumber") ? record.get("streetNumber") : ""),
                     name:           record.get("name"),
-                    startTime:      record.get("startTime"),
-                    endTime:        record.get("endTime"),
+                    startTime:      (record.get("startTime") ? record.get("startTime") : ""),
+                    endTime:        (record.get("endTime") ? record.get("endTime") : ""),
                 }
             });
             storedNodes = nodes;
@@ -388,10 +388,10 @@ router.get('/getRoutesFromORS', async (req, res) => {
             const vehicles = result.records.map(record => ({
                 vehicleID:  record.get("vehicleID"),
                 capacity:   record.get("capacity"),
-                startNode:  record.get("startNode"),
-                endNode:    record.get("endNode"),
-                startTime:  record.get("startTime"),
-                endTime:    record.get("endTime"),
+                startNode:  (record.get("startNode") ? record.get("startNode") : ""),
+                endNode:    (record.get("endNode") ? record.get("endNode") : ""),
+                startTime:  (record.get("startTime") ? record.get("startTime") : ""),
+                endTime:    (record.get("endTime") ? record.get("endTime") : ""),
             }));
             vehicleConfig = vehicles.map(v => {  
                 const vehicle = {

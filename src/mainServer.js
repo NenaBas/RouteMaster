@@ -45,6 +45,19 @@ function timeToMinutes(time) {
     const [hours, minutes] = time.split(':').map(Number);
     return hours * 60 + minutes;
 }
+// Convert minutes to 'HH:MM'
+function minutesToTime(minutes) {
+    if (minutes === null || minutes === undefined) return null;
+    
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    
+    // Pad single-digit hours and minutes with leading zero
+    const paddedHours = String(hours).padStart(2, '0');
+    const paddedMinutes = String(remainingMinutes).padStart(2, '0');
+    
+    return `${paddedHours}:${paddedMinutes}`;
+}
 const simplifyRouteData = (data) => {
     const vehicles = {};
     const vehiclesStartEnd = {};
@@ -453,7 +466,8 @@ router.get('/getRoutesFromORS', async (req, res) => {
 router.get('/retrieveASPrules', async (req, res) => {
     let locations, stopNames, postData, storedNodes;
     let durationsString = '', nodeVehicleDeclarations = '', nodesInfoString = '', vehiclesInfoString = '';
-    let earliestTime = Infinity;
+    let earliestTimeInMinutes = Infinity;
+    let earliestTime;
 
     // load the nodes first and append to nodesString
     async function loadNodes() {
@@ -471,11 +485,11 @@ router.get('/retrieveASPrules', async (req, res) => {
                 // Check and update the earliest time (only if not null)
                 console.log(`TIMES (${record.get('name')})\t start:${startTimeMinutes}\t end:${endTimeMinutes}`);
                 if (startTimeMinutes === null && endTimeMinutes !== null)  
-                    earliestTime = Math.min(earliestTime, endTimeMinutes);
+                    earliestTimeInMinutes = Math.min(earliestTimeInMinutes, endTimeMinutes);
                 else if (startTimeMinutes !== null && endTimeMinutes === null)
-                    earliestTime = Math.min(earliestTime, startTimeMinutes);
+                    earliestTimeInMinutes = Math.min(earliestTimeInMinutes, startTimeMinutes);
                 else if (startTimeMinutes !== null && endTimeMinutes !== null)
-                    earliestTime = Math.min(earliestTime, startTimeMinutes, endTimeMinutes);
+                    earliestTimeInMinutes = Math.min(earliestTimeInMinutes, startTimeMinutes, endTimeMinutes);
 
                 return {
                     streetName:     record.get("streetName"),
@@ -492,8 +506,8 @@ router.get('/retrieveASPrules', async (req, res) => {
             // Adjust all times relative to the earliest time
             storedNodes = nodes.map(node => ({
                 ...node,
-                startTimeMinutes:      node.startTimeMinutes - earliestTime,
-                endTimeMinutes:        node.endTimeMinutes - earliestTime,
+                startTimeMinutes:      node.startTimeMinutes - earliestTimeInMinutes,
+                endTimeMinutes:        node.endTimeMinutes - earliestTimeInMinutes,
             }));
 
             locations = storedNodes.map(node => [node.longitude, node.latitude]);
@@ -502,11 +516,13 @@ router.get('/retrieveASPrules', async (req, res) => {
 
             storedNodes.map(node => {
                 nodeVehicleDeclarations += ('node('+node.name+').');
-                if (node.startTime) {
+                if (node.startTime) { 
+                    if (node.startTimeMinutes === 0)  earliestTime = node.startTime;
                     console.log("--> node: ",node.name,"\tstart:\t ",node.startTime,"(",node.startTimeMinutes,")");
                     nodesInfoString += ('startTimeNode('+node.name+', '+node.startTimeMinutes+').');
                 }
                 if (node.endTime) { 
+                    if (node.endTimeMinutes === 0)  earliestTime = node.endTime;
                     console.log("--> node: ",node.name,"\tendTime: ",node.endTime,"(",node.endTimeMinutes,")");
                     nodesInfoString += ('endTimeNode('+node.name+', '+node.endTimeMinutes+').');
                 }
@@ -519,7 +535,7 @@ router.get('/retrieveASPrules', async (req, res) => {
     }
     await loadNodes();
 
-    console.log('Earliest Time (in minutes):', earliestTime); // Earliest time in minutes from midnight
+    console.log('Earliest Time (in minutes):', earliestTimeInMinutes,"(",minutesToTime(earliestTimeInMinutes),")"); // Earliest time in minutes from midnight
 
     // load the vehicles next and append to vehiclesString
     async function loadVehicles() {
@@ -593,7 +609,7 @@ router.get('/retrieveASPrules', async (req, res) => {
                         durationsString += ('distance('+startNode+', '+endNode+', '+minutes+').');
                     }
                 }
-                res.json({durations,rulesString: (nodeVehicleDeclarations+nodesInfoString+vehiclesInfoString+durationsString)});
+                res.json({durations, earliestTime, earliestTimeInMinutes, rulesString: (nodeVehicleDeclarations+nodesInfoString+vehiclesInfoString+durationsString)});
             } else {
                 console.log(response.statusCode,"\n",postData);
                 res.status(response.statusCode).send('Failed to load matrix with distances between nodes, from OpenRouting Service.');

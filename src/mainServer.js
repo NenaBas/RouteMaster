@@ -147,19 +147,24 @@ const groupMatrixByVehicle = (matrix) => {
 // extract the matrix of the optimal answer set from the clingo results and sort it by vehicle and timepoint
 const extractMatrixFromClingoAS = (output) => {
     const match = output.match(/Optimal:\s+True\s+([\s\S]*?)SAT/);
+    const earliestTimeMatch = output.match(/earliestTimeInMinutes:\s+(\d+)/);
+    let earliestTimeInMinutes = null;
+    if (earliestTimeMatch) {
+        earliestTimeInMinutes = parseInt(earliestTimeMatch[1], 10);
+    }
     if (match) {
         const dataSection = match[1];
         const matrixMatch = dataSection.match(/\[\[.*?\]\]/);
         if (matrixMatch) {
             try {
                 const matrix = JSON.parse(matrixMatch[0].replace(/'/g, '"')); // Replace single quotes with double quotes for JSON parsing
-                return matrix;
+                return { matrix, earliestTimeInMinutes };
             } catch (error) {
                 console.error('Error parsing matrix:', error);
             }
         }
     }
-    return null;
+    return { matrix: null, earliestTimeInMinutes };
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -656,12 +661,12 @@ router.get('/runPythonScript', async (req, res) => {
                 console.error('Python script stderr:', stderr);
             }
             console.log('Python script output:', stdout);
-            const matrix = extractMatrixFromClingoAS(stdout);
+            const { matrix, earliestTimeInMinutes } = extractMatrixFromClingoAS(stdout);
             if (matrix) {
                 // sort and group the matrix by vehicle
                 const sortedMatrix = sortMatrix(matrix);
                 const groupedMatrix = groupMatrixByVehicle(sortedMatrix);
-                res.json({ groupedMatrix });
+                res.json({ groupedMatrix, earliestTimeInMinutes });
             }
             else
                 res.status(500).send('Matrix not found in the output.');

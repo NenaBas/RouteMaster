@@ -104,6 +104,8 @@ def getInputData():
             aspFacts = data.get('rulesString')
             print('-----RULES-----')
             print(aspFacts)
+            earliestTimeInMinutes = data.get('earliestTimeInMinutes');
+            print('earliestTimeInMinutes: ', earliestTimeInMinutes)
             if aspFacts is not None:
                 return aspFacts
             else:

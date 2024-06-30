@@ -69,7 +69,7 @@ const simplifyRouteData = (data) => {
 
         const vehicleName = entry.nodeA.vehicleName;
 
-        if (!vehicles[vehicleName]) {
+        if (!vehicles[vehicleName] && vehicleName !== undefined) {
             vehicles[vehicleName] = [];
         }
         if (!vehiclesStartEnd[vehicleName]) {

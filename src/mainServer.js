@@ -616,7 +616,7 @@ router.get('/retrieveASPrules', async (req, res) => {
                 }
                 res.json({durations, earliestTime, earliestTimeInMinutes, rulesString: (nodeVehicleDeclarations+nodesInfoString+vehiclesInfoString+durationsString)});
             } else {
-                console.log(response.statusCode,"\n",postData);
+                console.log("ORS matrix retrieval failed with status code:",response.statusCode,"\n",postData);
                 res.status(response.statusCode).send('Failed to load matrix with distances between nodes, from OpenRouting Service.');
             }
         });

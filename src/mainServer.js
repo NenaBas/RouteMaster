@@ -65,8 +65,6 @@ const simplifyRouteData = (data) => {
     console.log('-------------------------------------\nBEFORE DATA SIMPLIFICATION:\n',data);
 
     data.forEach(entry => {
-        // if (entry.relationshipType === "START_TO_ROUTE" || entry.relationshipType === "ROUTE_TO_END") return;
-
         const vehicleName = entry.nodeA.vehicleName;
 
         if (!vehicles[vehicleName] && vehicleName !== undefined) {
@@ -76,9 +74,35 @@ const simplifyRouteData = (data) => {
             vehiclesStartEnd[vehicleName] = {};
         }
         if (entry.relationshipType === "START_TO_ROUTE") {
-            vehiclesStartEnd[entry.nodeB.vehicleName] =  {...vehiclesStartEnd[entry.nodeB.vehicleName], 'routeStart': entry.nodeA.name};
+            vehiclesStartEnd[entry.nodeB.vehicleName] =  {
+                ...vehiclesStartEnd[entry.nodeB.vehicleName], 
+                'routeStartName': entry.nodeA.name, 
+                'routeStart': {
+                    name:           entry.nodeA.name,
+                    arrivalTime:    entry.nodeA.arrivalTime,
+                    startTime:      entry.nodeA.startTime,
+                    endTime:        entry.nodeA.endTime,
+                    streetName:     entry.nodeA.streetName,
+                    streetNumber:   entry.nodeA.streetNumber,
+                    latitude:       entry.nodeA.latitude,
+                    longitude:      entry.nodeA.longitude
+                }
+            };
         } else if (entry.relationshipType === "ROUTE_TO_END") {
-            vehiclesStartEnd[entry.nodeA.vehicleName] =  {...vehiclesStartEnd[entry.nodeA.vehicleName], 'routeEnd': entry.nodeB.name} ;
+            vehiclesStartEnd[entry.nodeA.vehicleName] =  {
+                ...vehiclesStartEnd[entry.nodeA.vehicleName], 
+                'routeEndName': entry.nodeB.name,
+                'routeEnd': {
+                    name:           entry.nodeB.name,
+                    arrivalTime:    entry.nodeB.arrivalTime,
+                    startTime:      entry.nodeB.startTime,
+                    endTime:        entry.nodeB.endTime,
+                    streetName:     entry.nodeB.streetName,
+                    streetNumber:   entry.nodeB.streetNumber,
+                    latitude:       entry.nodeB.latitude,
+                    longitude:      entry.nodeB.longitude
+                }
+            } ;
         } else {
             // check if a stop with the same name already exists
             const stopExists = (vehicle, stopName) => {
@@ -112,13 +136,30 @@ const simplifyRouteData = (data) => {
             }
         }
     });
+    Object.keys(vehicles).map(vehicleName => {
+        console.log("----------------------------vehicles---------------------------",vehicleName,'\n',vehicles[vehicleName]);
+        console.log('vehicles[vehicleName][0].name:\t',vehicles[vehicleName][0].name);
+        console.log('vehiclesStartEnd[vehicleName].routeStartName:\t',vehiclesStartEnd[vehicleName].routeStartName,vehiclesStartEnd[vehicleName].routeStart);
 
-    return Object.keys(vehicles).map(vehicleName => ({
+        // Add the routeStart at the beginning if not first stop as well 
+        if (vehicles[vehicleName][0].name !== vehiclesStartEnd[vehicleName].routeStartName) {
+            console.log('\n\nbefore unshift:\n',vehiclesStartEnd[vehicleName].routeStart)
+            vehicles[vehicleName].unshift(vehiclesStartEnd[vehicleName].routeStart);
+        }
+            
+        let lastEntry = vehicles[vehicleName][vehicles[vehicleName].length - 1];
+        if (lastEntry.name !== vehiclesStartEnd[vehicleName].routeEndName) {
+            vehicles[vehicleName].push(vehiclesStartEnd[vehicleName].routeEnd);
+        }
+    });
+    const simplifiedData = Object.keys(vehicles).map(vehicleName => ({
         vehicleName,
         stops:      vehicles[vehicleName],
-        routeStart: vehiclesStartEnd[vehicleName].routeStart,
-        routeEnd:   vehiclesStartEnd[vehicleName].routeEnd
+        routeStart: vehiclesStartEnd[vehicleName].routeStartName,
+        routeEnd:   vehiclesStartEnd[vehicleName].routeEndName
     }));
+
+    return simplifiedData;
 };
 const logRouteName = (req, res, next) => {
     if (req.path !== '/favicon.ico')    // avoid double logging
@@ -338,15 +379,13 @@ router.get('/getRoutes', async (req, res) => {
         });
         // filter nodeNames to find those not included into any route
         const missingNodes = nodeNames.filter(node => !assignedStops.has(node.name));
-
-        console.log('non assigned stops: ', missingNodes);
-        
         // create new object for all the unassigned stops
         const unassignedVehicle = {
             "vehicleName": "unassigned",
             "stops": missingNodes
         };
         simplifiedData.push(unassignedVehicle);
+
         res.json(simplifiedData);
         await session.close();
     } catch (error) {
@@ -520,16 +559,17 @@ router.get('/retrieveASPrules', async (req, res) => {
             postData = JSON.stringify({ locations });
 
             storedNodes.map(node => {
-                nodeVehicleDeclarations += ('node('+node.name+').');
+                let nodeName = node.name;
+                nodeVehicleDeclarations += ('node('+nodeName.toLowerCase()+').');
                 if (node.startTime) { 
                     if (node.startTimeMinutes === 0)  earliestTime = node.startTime;
-                    console.log("--> node: ",node.name,"\tstart:\t ",node.startTime,"(",node.startTimeMinutes,")");
-                    nodesInfoString += ('startTimeNode('+node.name+', '+node.startTimeMinutes+').');
+                    console.log("--> node: ",nodeName.toLowerCase(),"\tstart:\t ",node.startTime,"(",node.startTimeMinutes,")");
+                    nodesInfoString += ('startTimeNode('+nodeName.toLowerCase()+', '+node.startTimeMinutes+').');
                 }
                 if (node.endTime) { 
                     if (node.endTimeMinutes === 0)  earliestTime = node.endTime;
-                    console.log("--> node: ",node.name,"\tendTime: ",node.endTime,"(",node.endTimeMinutes,")");
-                    nodesInfoString += ('endTimeNode('+node.name+', '+node.endTimeMinutes+').');
+                    console.log("--> node: ",nodeName.toLowerCase(),"\tendTime: ",node.endTime,"(",node.endTimeMinutes,")");
+                    nodesInfoString += ('endTimeNode('+nodeName.toLowerCase()+', '+node.endTimeMinutes+').');
                 }
             })            
             await session.close();
@@ -561,14 +601,16 @@ router.get('/retrieveASPrules', async (req, res) => {
                 endTime:    record.get("endTime"),
             }));
             vehicles.map(vehicle => {
+                let startNodeName = vehicle.startNode;
+                let endNodeName = vehicle.endNode;
                 nodeVehicleDeclarations += ('vehicle(v'+vehicle.vehicleID+').');
                 vehiclesInfoString += ('capacity(v'+vehicle.vehicleID+', '+vehicle.capacity+').');
                 console.log("--> vehicle: v",vehicle.vehicleID,"\tcapacity: ",vehicle.capacity);
-                if (vehicle.startNode && vehicle.startNode != "null") {
-                    vehiclesInfoString += ('startNode(v'+vehicle.vehicleID+', '+vehicle.startNode+').');
+                if (startNodeName && startNodeName.toLowerCase() && startNodeName.toLowerCase() != "null") {
+                    vehiclesInfoString += ('startNode(v'+vehicle.vehicleID+', '+startNodeName.toLowerCase()+').');
                 }
-                if (vehicle.endNode && vehicle.endNode != "null") {
-                    vehiclesInfoString += ('endNode(v'+vehicle.vehicleID+', '+vehicle.endNode+').');
+                if (endNodeName && endNodeName.toLowerCase() && endNodeName.toLowerCase() != "null") {
+                    vehiclesInfoString += ('endNode(v'+vehicle.vehicleID+', '+endNodeName.toLowerCase()+').');
                 }
             })
         } catch (error) {
@@ -611,7 +653,7 @@ router.get('/retrieveASPrules', async (req, res) => {
                         endNode = stopNames[j];
                         let minutes = Math.ceil(durations[i][j] / 60);
                         // console.log('row: ', i, ', col:', j, "\t", durations[i][j], "\tmin: ",minutes, "\tfrom: ",startNode, ", to: ",endNode);
-                        durationsString += ('distance('+startNode+', '+endNode+', '+minutes+').');
+                        durationsString += ('distance('+startNode.toLowerCase()+', '+endNode.toLowerCase()+', '+minutes+').');
                     }
                 }
                 res.json({durations, earliestTime, earliestTimeInMinutes, rulesString: (nodeVehicleDeclarations+nodesInfoString+vehiclesInfoString+durationsString)});

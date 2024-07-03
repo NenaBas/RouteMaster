@@ -69,12 +69,14 @@ def parseOutput(answerset):
                 argumentsList = argumentsStr.split(',')
                 if (int(argumentsList[3]) < 0):
                     argumentsList[3] = '0'
-                    argumentsStr = argumentsStr[0:argumentsStr.rfind(',')]
-                    moveStr = 'moveTo('+argumentsStr+','
-                    if (answerset.find(moveStr)>-1):
-                        argumentsList.append("Served")
-                    else:
-                        argumentsList.append("NotServed")
+                    
+                argumentsStr =  argumentsStr[0:argumentsStr.rfind(',')]
+                moveStr = 'moveTo('+argumentsStr+')'
+                if (answerset.find(moveStr)>-1):
+                    argumentsList.append('Served')
+                else:
+                    argumentsList.append('NotServed')
+                    
                 if debugMode:
                     print(argumentsList)
                 
@@ -101,32 +103,32 @@ def parseOutput(answerset):
 
 def getInputData():
 
-    # try:
-    #     response = requests.get('http://139.91.183.121/neo4j/retrieveASPrules', timeout=60) # 60 seconds timeout
-    #     # if request was successful
-    #     if response.status_code == 200:
-    #         data = response.json()  # response in json format
-    #         # Retrieve 'rulesString' value
-    #         aspFacts = data.get('rulesString')
-    #         print('-----RULES-----')
-    #         print(aspFacts)
-    #         earliestTimeInMinutes = data.get('earliestTimeInMinutes')
-    #         print('earliestTimeInMinutes: ', earliestTimeInMinutes)
-    #         if aspFacts is not None:
-    #             return aspFacts
-    #         else:
-    #             return "rulesString not found in the response!"
-    #     else:
-    #         return f"Failed to fetch data. Status code: {response.status_code}"
-    # except requests.exceptions.Timeout:
-    #     return "An error occurred: The 'retrieveASPrules' request has been timed out!"
-    # except requests.RequestException as e:
-    #     return f"An error occurred while trying to fetch data: {e}"
+    try:
+        response = requests.get('http://139.91.183.121/neo4j/retrieveASPrules', timeout=60) # 60 seconds timeout
+        # if request was successful
+        if response.status_code == 200:
+            data = response.json()  # response in json format
+            # Retrieve 'rulesString' value
+            aspFacts = data.get('rulesString')
+            print('-----RULES-----')
+            print(aspFacts)
+            earliestTimeInMinutes = data.get('earliestTimeInMinutes')
+            print('earliestTimeInMinutes: ', earliestTimeInMinutes)
+            if aspFacts is not None:
+                return aspFacts
+            else:
+                return "rulesString not found in the response!"
+        else:
+            return f"Failed to fetch data. Status code: {response.status_code}"
+    except requests.exceptions.Timeout:
+        return "An error occurred: The 'retrieveASPrules' request has been timed out!"
+    except requests.RequestException as e:
+        return f"An error occurred while trying to fetch data: {e}"
 
-    earliestTimeInMinutes = 525
-    print('earliestTimeInMinutes: ', earliestTimeInMinutes)
-    aspFacts = "node(stop1).node(stop4).node(stop2).node(stop6).node(stop5).node(stop3).node(stop7).vehicle(v1).vehicle(v2).startTimeNode(stop1, 20).endTimeNode(stop1, 30).startTimeNode(stop4, 25).endTimeNode(stop4, 35).startTimeNode(stop2, 85).endTimeNode(stop2, 95).startTimeNode(stop6, 0).endTimeNode(stop6, 10).startTimeNode(stop5, 40).endTimeNode(stop5, 45).startTimeNode(stop3, 75).endTimeNode(stop3, 85).startTimeNode(stop7, 60).endTimeNode(stop7, 70).capacity(v1, 3).startNode(v1, stop1).capacity(v2, 2).startNode(v2, stop6).distance(stop1, stop1, 0).distance(stop1, stop4, 1).distance(stop1, stop2, 3).distance(stop1, stop6, 2).distance(stop1, stop5, 2).distance(stop1, stop3, 3).distance(stop1, stop7, 2).distance(stop4, stop1, 2).distance(stop4, stop4, 0).distance(stop4, stop2, 3).distance(stop4, stop6, 3).distance(stop4, stop5, 2).distance(stop4, stop3, 2).distance(stop4, stop7, 3).distance(stop2, stop1, 3).distance(stop2, stop4, 2).distance(stop2, stop2, 0).distance(stop2, stop6, 2).distance(stop2, stop5, 2).distance(stop2, stop3, 2).distance(stop2, stop7, 2).distance(stop6, stop1, 3).distance(stop6, stop4, 2).distance(stop6, stop2, 1).distance(stop6, stop6, 0).distance(stop6, stop5, 2).distance(stop6, stop3, 2).distance(stop6, stop7, 1).distance(stop5, stop1, 2).distance(stop5, stop4, 1).distance(stop5, stop2, 3).distance(stop5, stop6, 2).distance(stop5, stop5, 0).distance(stop5, stop3, 2).distance(stop5, stop7, 3).distance(stop3, stop1, 3).distance(stop3, stop4, 2).distance(stop3, stop2, 2).distance(stop3, stop6, 2).distance(stop3, stop5, 2).distance(stop3, stop3, 0).distance(stop3, stop7, 2).distance(stop7, stop1, 3).distance(stop7, stop4, 2).distance(stop7, stop2, 1).distance(stop7, stop6, 1).distance(stop7, stop5, 2).distance(stop7, stop3, 2).distance(stop7, stop7, 0)."
-    return aspFacts
+    # earliestTimeInMinutes = 525
+    # print('earliestTimeInMinutes: ', earliestTimeInMinutes)
+    # aspFacts = "node(stop1).node(stop4).node(stop2).node(stop6).node(stop5).node(stop3).node(stop7).vehicle(v1).vehicle(v2).startTimeNode(stop1, 20).endTimeNode(stop1, 30).startTimeNode(stop4, 25).endTimeNode(stop4, 35).startTimeNode(stop2, 85).endTimeNode(stop2, 95).startTimeNode(stop6, 0).endTimeNode(stop6, 10).startTimeNode(stop5, 40).endTimeNode(stop5, 45).startTimeNode(stop3, 75).endTimeNode(stop3, 85).startTimeNode(stop7, 60).endTimeNode(stop7, 70).capacity(v1, 3).startNode(v1, stop1).capacity(v2, 2).startNode(v2, stop6).distance(stop1, stop1, 0).distance(stop1, stop4, 1).distance(stop1, stop2, 3).distance(stop1, stop6, 2).distance(stop1, stop5, 2).distance(stop1, stop3, 3).distance(stop1, stop7, 2).distance(stop4, stop1, 2).distance(stop4, stop4, 0).distance(stop4, stop2, 3).distance(stop4, stop6, 3).distance(stop4, stop5, 2).distance(stop4, stop3, 2).distance(stop4, stop7, 3).distance(stop2, stop1, 3).distance(stop2, stop4, 2).distance(stop2, stop2, 0).distance(stop2, stop6, 2).distance(stop2, stop5, 2).distance(stop2, stop3, 2).distance(stop2, stop7, 2).distance(stop6, stop1, 3).distance(stop6, stop4, 2).distance(stop6, stop2, 1).distance(stop6, stop6, 0).distance(stop6, stop5, 2).distance(stop6, stop3, 2).distance(stop6, stop7, 1).distance(stop5, stop1, 2).distance(stop5, stop4, 1).distance(stop5, stop2, 3).distance(stop5, stop6, 2).distance(stop5, stop5, 0).distance(stop5, stop3, 2).distance(stop5, stop7, 3).distance(stop3, stop1, 3).distance(stop3, stop4, 2).distance(stop3, stop2, 2).distance(stop3, stop6, 2).distance(stop3, stop5, 2).distance(stop3, stop3, 0).distance(stop3, stop7, 2).distance(stop7, stop1, 3).distance(stop7, stop4, 2).distance(stop7, stop2, 1).distance(stop7, stop6, 1).distance(stop7, stop5, 2).distance(stop7, stop3, 2).distance(stop7, stop7, 0)."
+    # return aspFacts
 
 #%% Main
 

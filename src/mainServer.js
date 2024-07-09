@@ -297,18 +297,19 @@ router.get('/getRoutes', async (req, res) => {
 
             const fetchNodeNamesQuery = `
                 MATCH (n:Node)
-                RETURN n.name AS name, n.startTime AS startTime, n.endTime AS endTime, n.latitude AS latitude, n.longitude AS longitude, n.streetName AS streetName, n.streetNumber AS streetNumber
+                RETURN n.name AS name, n.startTime AS startTime, n.endTime AS endTime, n.arrivalTime AS arrivalTime, n.latitude AS latitude, n.longitude AS longitude, n.streetName AS streetName, n.streetNumber AS streetNumber
             `;
             const result = await session.run(fetchNodeNamesQuery);
             nodeNames = result.records.map(record => {
                 return {
                     name:        record.get("name"), 
-                    startTime:   (record.get("startTime") ? record.get("startTime") : null),                    
-                    endTime:     (record.get("endTime")   ? record.get("endTime")   : null),
+                    startTime:   (record.get("startTime") ? record.get("startTime") : ""),                    
+                    endTime:     (record.get("endTime")   ? record.get("endTime")   : ""),
                     latitude:    record.get("latitude"),
                     longitude:   record.get("longitude"),
                     streetName:  record.get("streetName"),
-                    streetNumber:(record.get("streetNumber") ? record.get("streetNumber") : "")
+                    streetNumber:(record.get("streetNumber") ? record.get("streetNumber") : ""),
+                    arrivalTime: (record.get("arrivalTime") ? record.get("arrivalTime") : "")
                 }
             });
             await session.close();
@@ -338,9 +339,9 @@ router.get('/getRoutes', async (req, res) => {
             // Extract properties from node 'a' and 'b'
             const nodeAProperties = {
                 name:        a.properties.name,
-                startTime:   a.properties.startTime || "",    // set to null if not available
+                startTime:   a.properties.startTime || "",    // set to empty string if not available
                 endTime:     a.properties.endTime || "",
-                arrivalTime: a.properties.arrivalTime,
+                arrivalTime: a.properties.arrivalTime || "",
                 vehicleName: a.properties.vehicleName,
                 streetName:  a.properties.streetName,
                 streetNumber:a.properties.streetNumber || "",
@@ -351,7 +352,7 @@ router.get('/getRoutes', async (req, res) => {
                 name:        b.properties.name,
                 startTime:   b.properties.startTime || "",
                 endTime:     b.properties.endTime || "",
-                arrivalTime: b.properties.arrivalTime,
+                arrivalTime: b.properties.arrivalTime || "",
                 vehicleName: b.properties.vehicleName,
                 streetName:  b.properties.streetName,
                 streetNumber:b.properties.streetNumber || "",
@@ -694,8 +695,12 @@ router.get('/runPythonScript', async (req, res) => {
 
         console.log(`Executing script: ${pythonExecutable} ${pythonScriptPath} ${lpFilePath}`);
 
-        execFile(pythonExecutable, [pythonScriptPath, lpFilePath], { cwd: scriptPath, timeout: 20000 }, (err, stdout, stderr) => {
+        execFile(pythonExecutable, [pythonScriptPath, lpFilePath], { cwd: scriptPath, timeout: 70000 }, (err, stdout, stderr) => {
             if (err) {
+                if (err.killed) {
+                    console.error('Execution error: script timed out');
+                    return res.status(504).send('Clingo script execution timed out!');
+                }
                 console.error('Execution error:', err);
                 return res.status(500).send(err.message);
             }

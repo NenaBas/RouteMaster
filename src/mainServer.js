@@ -6,6 +6,8 @@ import express from 'express';
 import path from 'path';
 import https from 'https';
 import fs from 'fs';
+// Replaces non-ASCII characters with an ASCII approximation, or if none exists, a replacement character which defaults to "?".
+import { transliterate } from 'inflected';    // https://www.npmjs.com/package/inflected#inflectortransliterate
 
 const cors = require('cors')
 const { execFile } = require('child_process');
@@ -88,6 +90,17 @@ const simplifyRouteData = (data) => {
                     longitude:      entry.nodeA.longitude
                 }
             };
+            if (entry.nodeA.name === entry.nodeB.name) {
+                vehiclesStartEnd[entry.nodeB.vehicleName] =  {
+                    ...vehiclesStartEnd[entry.nodeB.vehicleName],
+                    'routeStartServed': true
+                };
+            } else {
+                vehiclesStartEnd[entry.nodeB.vehicleName] =  {
+                    ...vehiclesStartEnd[entry.nodeB.vehicleName],
+                    'routeStartServed': false
+                };
+            }
         } else if (entry.relationshipType === "ROUTE_TO_END") {
             vehiclesStartEnd[entry.nodeA.vehicleName] =  {
                 ...vehiclesStartEnd[entry.nodeA.vehicleName], 
@@ -102,7 +115,18 @@ const simplifyRouteData = (data) => {
                     latitude:       entry.nodeB.latitude,
                     longitude:      entry.nodeB.longitude
                 }
-            } ;
+            };
+            if (entry.nodeA.name === entry.nodeB.name) {
+                vehiclesStartEnd[entry.nodeA.vehicleName] =  {
+                    ...vehiclesStartEnd[entry.nodeA.vehicleName],
+                    'routeEndServed': true
+                };
+            } else {
+                vehiclesStartEnd[entry.nodeA.vehicleName] =  {
+                    ...vehiclesStartEnd[entry.nodeA.vehicleName],
+                    'routeEndServed': false
+                };
+            }
         } else {
             // check if a stop with the same name already exists
             const stopExists = (vehicle, stopName) => {
@@ -154,9 +178,11 @@ const simplifyRouteData = (data) => {
     });
     const simplifiedData = Object.keys(vehicles).map(vehicleName => ({
         vehicleName,
-        stops:      vehicles[vehicleName],
-        routeStart: vehiclesStartEnd[vehicleName].routeStartName,
-        routeEnd:   vehiclesStartEnd[vehicleName].routeEndName
+        stops:              vehicles[vehicleName],
+        routeStart:         vehiclesStartEnd[vehicleName].routeStartName,
+        routeEnd:           vehiclesStartEnd[vehicleName].routeEndName,
+        routeStartServed:   vehiclesStartEnd[vehicleName].routeStartServed,
+        routeEndServed:     vehiclesStartEnd[vehicleName].routeEndServed
     }));
 
     return simplifiedData;
@@ -239,6 +265,7 @@ router.get('/loadNodes', async (req, res) => {
                 arrivalTime:    (record.get("arrivalTime") ? record.get("arrivalTime") : ""),
                 vehicleName:    (record.get("vehicleName") ? record.get("vehicleName") : ""),
             }));
+            console.log('--> #nodes:',nodes.length);
             res.json(nodes);
         }).catch(error => {
             console.error("Error fetching nodes from Neo4j:", error);
@@ -378,13 +405,38 @@ router.get('/getRoutes', async (req, res) => {
                 assignedStops.add(stop.name);
             });
         });
+
         // filter nodeNames to find those not included into any route
-        const missingNodes = nodeNames.filter(node => !assignedStops.has(node.name));
+        // const missingNodes = nodeNames.filter(node => !assignedStops.has(node.name));
+
+        ////////////////////////////////////////////////////////////////////////////////////
+        // Check routeStartServed and add first stop to missingNodes if necessary
+        const missingNodesSet = new Set(nodeNames.map(node => node.name));
+
+        simplifiedData.forEach(vehicle => {
+            console.log('--------------------------------------Checking routestart:\n',vehicle);
+            if (!vehicle.routeStartServed && vehicle.stops.length > 0) {
+                const firstStop = vehicle.stops[0];
+                // Only add to missingNodesSet if it's not already assigned by another vehicle
+                if (!assignedStops.has(firstStop.name)) {
+                    missingNodesSet.add(firstStop.name);
+                }
+            }
+        });
+        // Remove served nodes from missingNodesSet
+        assignedStops.forEach(stopName => {
+            missingNodesSet.delete(stopName);
+        });
+        // Convert missingNodesSet back to array of node objects
+        const missingNodes = nodeNames.filter(node => missingNodesSet.has(node.name));
+        ////////////////////////////////////////////////////////////////////////////////////
+
         // create new object for all the unassigned stops
         const unassignedVehicle = {
             "vehicleName": "unassigned",
             "stops": missingNodes
         };
+
         simplifiedData.push(unassignedVehicle);
 
         res.json(simplifiedData);
@@ -541,7 +593,7 @@ router.get('/retrieveASPrules', async (req, res) => {
                     latitude:       record.get("latitude"),
                     longitude:      record.get("longitude"),
                     streetNumber:   record.get("streetNumber"),
-                    name:           record.get("name"),
+                    name:           transliterate(record.get("name")),   // replace all the special characters, clingo has very simple enconding
                     startTime:      record.get("startTime"),
                     endTime:        record.get("endTime"),
                     startTimeMinutes,
@@ -559,18 +611,19 @@ router.get('/retrieveASPrules', async (req, res) => {
             stopNames = storedNodes.map(node => node.name); // Extract node names
             postData = JSON.stringify({ locations });
 
+            // replace all the special characters, clingo has very simple enconding
             storedNodes.map(node => {
-                let nodeName = node.name;
-                nodeVehicleDeclarations += ('node('+nodeName.toLowerCase()+').');
+                let nodeName = (node.name).toLowerCase().replace(/\s/g, '');
+                nodeVehicleDeclarations += ('node('+nodeName+').');
                 if (node.startTime) { 
                     if (node.startTimeMinutes === 0)  earliestTime = node.startTime;
-                    console.log("--> node: ",nodeName.toLowerCase(),"\tstart:\t ",node.startTime,"(",node.startTimeMinutes,")");
-                    nodesInfoString += ('startTimeNode('+nodeName.toLowerCase()+', '+node.startTimeMinutes+').');
+                    console.log("--> node: ",nodeName,"\tstart:\t ",node.startTime,"(",node.startTimeMinutes,")");
+                    nodesInfoString += ('startTimeNode('+nodeName+', '+node.startTimeMinutes+').');
                 }
                 if (node.endTime) { 
                     if (node.endTimeMinutes === 0)  earliestTime = node.endTime;
-                    console.log("--> node: ",nodeName.toLowerCase(),"\tendTime: ",node.endTime,"(",node.endTimeMinutes,")");
-                    nodesInfoString += ('endTimeNode('+nodeName.toLowerCase()+', '+node.endTimeMinutes+').');
+                    console.log("--> node: ",nodeName,"\tendTime: ",node.endTime,"(",node.endTimeMinutes,")");
+                    nodesInfoString += ('endTimeNode('+nodeName+', '+node.endTimeMinutes+').');
                 }
             })            
             await session.close();
@@ -603,15 +656,22 @@ router.get('/retrieveASPrules', async (req, res) => {
             }));
             vehicles.map(vehicle => {
                 let startNodeName = vehicle.startNode;
-                let endNodeName = vehicle.endNode;
+                let endNodeName   = vehicle.endNode;
+
+                // replace all the special characters, clingo has very simple enconding
+                if (startNodeName && startNodeName.toLowerCase() !== "null")
+                    startNodeName = transliterate(startNodeName.toLowerCase().replace(/\s/g, ''));
+                if (endNodeName   && endNodeName.toLowerCase() !== "null")
+                    endNodeName   = transliterate(endNodeName.toLowerCase().replace(/\s/g, ''));
+
                 nodeVehicleDeclarations += ('vehicle(v'+vehicle.vehicleID+').');
                 vehiclesInfoString += ('capacity(v'+vehicle.vehicleID+', '+vehicle.capacity+').');
                 console.log("--> vehicle: v",vehicle.vehicleID,"\tcapacity: ",vehicle.capacity);
-                if (startNodeName && startNodeName.toLowerCase() && startNodeName.toLowerCase() != "null") {
-                    vehiclesInfoString += ('startNode(v'+vehicle.vehicleID+', '+startNodeName.toLowerCase()+').');
+                if (startNodeName && startNodeName.toLowerCase() != "null") {
+                    vehiclesInfoString += ('startNode(v'+vehicle.vehicleID+', '+startNodeName+').');
                 }
-                if (endNodeName && endNodeName.toLowerCase() && endNodeName.toLowerCase() != "null") {
-                    vehiclesInfoString += ('endNode(v'+vehicle.vehicleID+', '+endNodeName.toLowerCase()+').');
+                if (endNodeName && endNodeName.toLowerCase() != "null") {
+                    vehiclesInfoString += ('endNode(v'+vehicle.vehicleID+', '+endNodeName+').');
                 }
             })
         } catch (error) {
@@ -647,14 +707,15 @@ router.get('/retrieveASPrules', async (req, res) => {
                 const durations  = jsondata.durations;
                 const numOfNodes = JSON.parse(postData).locations.length;
                 console.log('---> Number of nodes: ',numOfNodes);
+
                 let startNode = '', endNode = '';
                 for (let i=0; i<durations.length; i++) {
-                    startNode = stopNames[i];
+                    startNode = (stopNames[i]).toLowerCase().replace(/\s/g, '');
                     for (let j=0; j<durations[i].length; j++) {
-                        endNode = stopNames[j];
+                        endNode = (stopNames[j]).toLowerCase().replace(/\s/g, '');
                         let minutes = Math.ceil(durations[i][j] / 60);
                         // console.log('row: ', i, ', col:', j, "\t", durations[i][j], "\tmin: ",minutes, "\tfrom: ",startNode, ", to: ",endNode);
-                        durationsString += ('distance('+startNode.toLowerCase()+', '+endNode.toLowerCase()+', '+minutes+').');
+                        durationsString += ('distance('+startNode+', '+endNode+', '+minutes+').');
                     }
                 }
                 res.json({durations, earliestTime, earliestTimeInMinutes, rulesString: (nodeVehicleDeclarations+nodesInfoString+vehiclesInfoString+durationsString)});

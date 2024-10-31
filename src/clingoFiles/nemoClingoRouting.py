@@ -145,7 +145,7 @@ print("Initializing Clingo...")
 ctl = Control(["0"])
 
 
-# Specify optimaziation aspects
+# Specify optimization aspects
     # If we do not use the optN parameter, then we get a single optimal answer (the last one)
     # With optN activated, we get all optimal answers. We can also choose to get N optimal answers    
 if (optimalityGuarranteed) :

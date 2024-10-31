@@ -11,6 +11,8 @@ import { transliterate } from 'inflected';    // https://www.npmjs.com/package/i
 
 const cors = require('cors')
 const { execFile } = require('child_process');
+let childProcess;
+let processStoppedByUser = false; // Flag to track if the process was stopped intentionally
 
 const app = express();
 const port = process.env.PORT || 80;
@@ -721,14 +723,17 @@ router.get('/retrieveASPrules', async (req, res) => {
                 res.json({durations, earliestTime, earliestTimeInMinutes, rulesString: (nodeVehicleDeclarations+nodesInfoString+vehiclesInfoString+durationsString)});
             } else {
                 console.log("ORS matrix retrieval failed with status code:",response.statusCode,"\n",postData);
-                res.status(response.statusCode).send('Failed to load matrix with distances between nodes, from OpenRouting Service.');
+                if (response.statusCode === 503) {
+                    res.status(response.statusCode).send('OpenRouting matrix service unavailable.');
+                } else 
+                    res.status(response.statusCode).send('Failed to load matrix with distances between nodes, from OpenRouting Service.');
             }
         });
     });
 
     request.on('error', (error) => {
         console.error('Error loading distances matrix from OpenRouting Service:', error);
-        res.status(500).send('Failed to load matrix with distances between nodes, from OpenRouting Service.');
+        res.status(500).send('Failed to load matrix with distances between nodes, from OpenRouting Service!');
     });
 
     // Write the data to the request body
@@ -756,10 +761,14 @@ router.get('/runPythonScript', async (req, res) => {
 
         console.log(`Executing script: ${pythonExecutable} ${pythonScriptPath} ${lpFilePath}`);
 
-        execFile(pythonExecutable, [pythonScriptPath, lpFilePath], { cwd: scriptPath, timeout: 70000 }, (err, stdout, stderr) => {
+        childProcess = execFile(pythonExecutable, [pythonScriptPath, lpFilePath], { cwd: scriptPath, timeout: 70000 }, (err, stdout, stderr) => {
             if (err) {
-                if (err.killed) {
-                    console.error('Execution error: script timed out');
+                if (processStoppedByUser) {
+                    console.log('Process killed by user');
+                    return res.send('Clingo retrieval process stopped');
+                }
+                else if (err.killed) {
+                    console.error('Execution error: script timed out',res.statusCode);
                     return res.status(504).send('Clingo script execution timed out!');
                 }
                 console.error('Execution error:', err);
@@ -782,6 +791,18 @@ router.get('/runPythonScript', async (req, res) => {
     } catch (error) {
         console.error('Error in runPythonScript:', error);
         res.status(500).send('Error in runPythonScript');
+    }
+});
+
+// kill the /runPythonScript
+router.get('/stopPythonScript', (req, res) => {
+    if (childProcess) {
+        processStoppedByUser = true;
+        childProcess.kill('SIGINT');  // Sending SIGINT to stop the process gracefully
+        console.log('Child process to retrieve CLINGO results stopped.',res.statusCode);
+        res.send('Clingo retrieval process stopped');
+    } else {
+        res.status(404).send('No process is running');
     }
 });
 
